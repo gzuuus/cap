@@ -60,7 +60,7 @@ pub async fn dns01_certificate(
 
     let claims = match verify_attestation(&state, verify_url, token).await {
         Ok(claims) => claims,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let Some(descriptor_core_hash) = crate::routes::workload::extract_descriptor_core_hash(&claims)
     else {
@@ -169,7 +169,7 @@ async fn verify_attestation(
     state: &AppState,
     verify_url: &str,
     token: &str,
-) -> Result<Value, axum::response::Response> {
+) -> Result<Value, Box<axum::response::Response>> {
     let verify_response = match crate::routes::workload::trustee_attestation_verify_request(
         &state.trustee_http_client,
         verify_url,
@@ -185,7 +185,8 @@ async fn verify_attestation(
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"error": "trustee_attestation_verify_failed", "detail": err.to_string()})),
             )
-                .into_response());
+                .into_response()
+                .into());
         }
     };
 
@@ -200,7 +201,8 @@ async fn verify_attestation(
                 "upstream_body": body,
             })),
         )
-            .into_response());
+            .into_response()
+            .into());
     }
 
     verify_response.json().await.map_err(|err| {
@@ -209,6 +211,7 @@ async fn verify_attestation(
             Json(json!({"error": "attestation_claims_invalid", "detail": err.to_string()})),
         )
             .into_response()
+            .into()
     })
 }
 
